@@ -10,7 +10,7 @@ template<class Data>
 class Node
 {
 public:
-	static uint64_t morton(double x,double y,double z,float precision=0.0f) //normalized to range 0-1
+	static uint64_t morton(double x,double y,double z,double precision=0.0) //normalized to range 0-1
 	{
 		static const uint64_t mortmasks[5]={0x001F00000000FFFF,0x001F0000FF0000FF,0x100F00F00F00F00F,0x10C3C3C3C3C3C3C3,0x1249249249249249};
 		uint64_t out=0;
@@ -19,6 +19,9 @@ public:
 		for(unsigned int d=0;d<3;d++)
 		{
 			pid[d]=(p[d]*0x1FFFFF) & 0x1FFFFF;
+			int ex;
+			frexp(min(precision,2.0),&ex);
+			pid[d]&=~(0x1FFFFF >> -ex);//cut based on precision
 			for(unsigned int l=0;l<5;l++)
 			{
 				pid[d]=(pid[d] | (pid[d] << (32 >> l)) & mortmasks[l];
