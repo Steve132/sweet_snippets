@@ -10,7 +10,7 @@ template<class Data>
 class Node
 {
 public:
-	static uint64_t morton(double x,double y,double z) //normalized to range 0-1
+	static uint64_t morton(double x,double y,double z,float precision=0.0f) //normalized to range 0-1
 	{
 		static const uint64_t mortmasks[5]={0x001F00000000FFFF,0x001F0000FF0000FF,0x100F00F00F00F00F,0x10C3C3C3C3C3C3C3,0x1249249249249249};
 		uint64_t out=0;
@@ -48,3 +48,29 @@ private:
 
 template<class Data>
 using octree=std::set<Node<Data>>;
+
+
+
+
+
+
+
+
+/////////////////////////
+///usagee
+
+int main()
+{
+	octree<int> testree;  //create an octree where each node has a position and an int.
+	
+	testree.insert(Node<int>(.05,.5,0.1,new int)); //insert some nodes
+	testree.insert(Node<int>(.1,.5,.2,new int));
+	
+	testree.find(Node<int>(0.05,.5,0.1)); //find the first node in the octree.
+	
+	for(auto i=testree.lower_bound()
+	
+	
+	
+	
+}
