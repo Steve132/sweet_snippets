@@ -64,15 +64,20 @@ using octree=std::set<Node<Data>>;
 
 int main()
 {
-	octree<int> testree;  //create an octree where each node has a position and an int.
+	octree<Renderable> testree;  //create an octree where each node has a position and an renderable poitner.
 	
-	testree.insert(Node<int>(.05,.5,0.1,new int)); //insert some nodes
-	testree.insert(Node<int>(.1,.5,.2,new int));
+	testree.insert(Node<Renderable>(.05,.5,0.1,r)); //insert some nodes
+	testree.insert(Node<Renderable>(.1,.5,.2,r));
 	
 	testree.find(Node<int>(0.05,.5,0.1)); //find the first node in the octree.
 	
-	for(auto i=testree.lower_bound()
-	
+	//render all the elements within a given square boundary at a given precision.
+	for(auto i=testree.lower_bound(Node<Renderable>::morton(0.1,0.1,0.1,0.125));
+		i!=testree.upper_bound(Node<Renderable>::morton(0.3,0.3,0.3,0.125));
+		++i)
+	{
+		i->data->render();
+	}
 	
 	
 	
