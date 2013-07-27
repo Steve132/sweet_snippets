@@ -43,7 +43,7 @@ public:
 	{
 		return (a.m_morton != b.m_morton) ? 
 			a.m_morton < b.m_morton : 
-			((a && b) ? *a < *b : false);
+			((a && b) ? *a.data < *b.data : false);
 	}
 private:
 	uint64_t m_morton;
