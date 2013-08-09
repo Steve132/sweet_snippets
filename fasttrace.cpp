@@ -10,7 +10,7 @@ struct ray
 
 Vector3b maxmask(Vector3d v)
 {
-	return max(max(v.xyz,v.yzx),v.zyx)==v.xyz;//chooses maximum dimension of intercept distance.
+	return max(max(v.xyz,v.yzx),v.zxy)==v.xyz;//chooses maximum dimension of intercept distance.
 }	
 Vector3ui next(Vector3ui current,unsigned int increment,const ray_traversal& r)
 {
