@@ -74,7 +74,7 @@ const Box* intersect(const ray& r,const std::set<Box>& scene) //if this is a mul
 			}
 			else
 			{
-				currentsize>>1;
+				currentsize>>1;//if you aren't moving the intersection point, then you need to change the currentposition here...this is a bug.
 			}
 		}
 	}
