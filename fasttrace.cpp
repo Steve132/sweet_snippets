@@ -61,7 +61,7 @@ const Box* intersect(const ray& r,const std::set<Box>& scene) //if this is a mul
 		{
 			Vector3u nextposition=next(currentposition,currentsize,r);
 			vector nextsizes=((nextposition ^ (nextposition-1) >> 1); //set trailing zeros to FFFF, 
-			currentsize=(nextsizes.x | nextsizes.y | nextsizes)+1;  //bitwise or the trails for max, then increment this.  this is the new size.
+			currentsize=(nextsizes.x | nextsizes.y | nextsizes.z)+1;  //bitwise or the trails for max, then increment this.  this is the new size.
 		}
 		else //if data exists
 		{
