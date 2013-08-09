@@ -4,13 +4,13 @@ using namespace std;
 
 struct ray
 {
-  Vector3d position;
+	Vector3d position;
 	Vector3d direction;
 };
 
 Vector3b maxmask(Vector3d v)
 {
-	return max(max(v.xyz,v.yzx),v.zyx)==v.zyx;//chooses maximum dimension of intercept distance.
+	return max(max(v.xyz,v.yzx),v.zyx)==v.xyz;//chooses maximum dimension of intercept distance.
 }	
 Vector3ui next(Vector3ui current,unsigned int increment,const ray_traversal& r)
 {
@@ -60,8 +60,8 @@ const Box* intersect(const ray& r,const std::set<Box>& scene) //if this is a mul
 		if(data_lower == data_upper)  //if data does not exist with this prefix.
 		{
 			Vector3u nextposition=next(currentposition,currentsize,r);
-			vector nextsizes=((nextposition ^ (nextposition-1) >> 1)+1; //set trailing zeros to FFFF, then increment this.  this is the new size.
-			currentsize=max(nextsizes);
+			vector nextsizes=((nextposition ^ (nextposition-1) >> 1); //set trailing zeros to FFFF, 
+			currentsize=(nextsizes.x | nextsizes.y | nextsizes)+1;  //bitwise or the trails for max, then increment this.  this is the new size.
 		}
 		else //if data exists
 		{
