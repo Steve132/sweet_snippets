@@ -89,7 +89,7 @@ int main()
 
 static uint64_t morton(uint32_t x,uint32_t y,uint32_t z) //normalized to range 0-1
 	{
-		static const uint64_t mortmasks[5]={0x001F00000000FFFF,0x001F0000FF0000FF,0x100F00F00F00F00F,0x10C3C3C3C3C3C3C3,0x1249249249249249};
+		static const uint64_t mortmasks[5]={0x001F00000000FFFF,0x001F0000FF0000FF,0x100F00F00F00F00F,0x10C30C30C30C30C3,0x1249249249249249};
 		uint64_t out=0;
 		uint64_t pid[3]={x,y,z};
 		for(unsigned int d=0;d<3;d++)
