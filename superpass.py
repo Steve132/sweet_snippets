@@ -31,7 +31,7 @@ def superpass(master,domain,username="",salt="",length=10,punctuation=True):
 		raise "Error, length is too large for this hash function"
 	metasalt=bytearray(username+"|"+domain+"|"+salt,'utf-8')
 	master=bytearray(master,'utf-8')
-	bytes=pbkdf2_256(hmac_sha256,master,metasalt,2**13)
+	bytes=pbkdf2_256(hmac_sha256,master,metasalt,1 << 12)
 	return makepassword(bytes,length,punctuation)
 	
 if __name__=='__main__':
