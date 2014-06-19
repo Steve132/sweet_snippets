@@ -54,11 +54,10 @@ if __name__=='__main__':
 	parser.add_argument('--length','-l',nargs=1,type=int,help='the length of password to generate (default: 12)')
 	parser.add_argument('--punctuation','-p',action='store_true',help='if present, this password requires at least one punctuation')
 	nsan=vars(parser.parse_args())
+	if(nsan['punctuation']):
+		nsan['punctuation']=[True]
 	nsa=dict([(k,v[0]) for k,v in nsan.items() if v])
 	print(nsa)
 	mst=getpass.getpass("Master password:")
 	print(superpass(mst,**nsa))
 	
-def canonical_domains():
-	pass	#/use list of known domains->domain mappings
-	pass	#/canonical wordlist..passwords MUST come from that list and MUST be >6 long...maybe...maybe not.
