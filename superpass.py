@@ -26,7 +26,7 @@ def makepassword(bytes,length,punctuation=False):
 		outpw+=character_dictionary[intvalue & 0x3F]
 		intvalue >>= 6
 	return outpw
-def superpass(master,domain,username="",salt="",length=10,punctuation=True):
+def superpass(master,domain,username="",salt="",length=10,punctuation=False):
 	if(length > int(256/6)):
 		raise "Error, length is too large for this hash function"
 	metasalt=bytearray(username+"|"+domain+"|"+salt,'utf-8')
