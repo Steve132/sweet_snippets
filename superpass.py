@@ -4,7 +4,7 @@ import hashlib
 def hmac_sha256(key,msg):
 	return hmac.new(key,msg,hashlib.sha256).digest()
 
-def pbkdf2(PRF,Password,Salt,c):
+def pbkdf2_256(PRF,Password,Salt,c):
 	#this assumes that hlen=dkLen...so don't concatenate
 	U=PRF(Password,Salt)
 	for i in range(1,c):
@@ -26,10 +26,12 @@ def makepassword(bytes,length,punctuation=False):
 		outpw+=character_dictionary[intvalue & 0x3F]
 		intvalue >>= 6
 	return outpw
-def superpass(master,domain,username="",salt="",length=10,punctuation=False):
+def superpass(master,domain,username="",salt="",length=10,punctuation=True):
+	if(length > int(256/6)):
+		raise "Error, length is too large for this hash function"
 	metasalt=bytearray(username+"|"+domain+"|"+salt,'utf-8')
 	master=bytearray(master,'utf-8')
-	bytes=pbkdf2(hmac_sha256,master,metasalt,2**13)
+	bytes=pbkdf2_256(hmac_sha256,master,metasalt,2**13)
 	return makepassword(bytes,length,punctuation)
 	
 if __name__=='__main__':
