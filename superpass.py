@@ -48,11 +48,11 @@ if __name__=='__main__':
 	import argparse
 	
 	parser=argparse.ArgumentParser()
-	parser.add_argument('--domain','-d',nargs=1,required=True,type=str)
-	parser.add_argument('--username','--user','-u',nargs=1,type=str)
-	parser.add_argument('--salt','-s',nargs=1,type=str)
-	parser.add_argument('--length','-l',nargs=1,type=int)
-	parser.add_argument('--punctuation','-p',action='store_true')
+	parser.add_argument('--domain','-d',nargs=1,required=True,type=str,help='The domain you are accessing (like google.com)')
+	parser.add_argument('--username','--user','-u',nargs=1,type=str,help='The username on the account')
+	parser.add_argument('--salt','-s',nargs=1,type=str,help='A salt string or physical keycode')
+	parser.add_argument('--length','-l',nargs=1,type=int,help='the length of password to generate (default: 12)')
+	parser.add_argument('--punctuation','-p',action='store_true',help='if present, this password requires at least one punctuation')
 	nsan=vars(parser.parse_args())
 	nsa=dict([(k,v[0]) for k,v in nsan.items() if v])
 	print(nsa)
