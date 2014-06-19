@@ -15,23 +15,32 @@ from binascii import hexlify
 import string
 #replace .! with 01 if punctuation is false..64-character dictionary 
 def makepassword(bytes,length,punctuation=False):
-	character_dictionary=string.digits+string.ascii_letters
-	if(punctuation):
-		character_dictionary+='.!'
-	else:
-		character_dictionary+='01'
+	character_dictionary=string.digits+string.ascii_letters+'01'
+	
 	intvalue=int(hexlify(bytes),16)
 	outpw=''
-	for x in range(length):
+	outpw+=string.ascii_lowercase[intvalue & 0xF]
+	intvalue >>= 4
+	outpw+=string.ascii_uppercase[intvalue & 0xF]
+	intvalue >>= 4
+	outpw+=string.digits[intvalue & 0x7]
+	intvalue >>= 3
+	for x in range(length-5):
 		outpw+=character_dictionary[intvalue & 0x3F]
 		intvalue >>= 6
+	if(punctuation):
+		outpw+='!'
+	else:
+		outpw+='d'
+	outpw+=character_dictionary[intvalue & 0x3F]
 	return outpw
-def superpass(master,domain,username="",salt="",length=10,punctuation=False):
+	
+def superpass(master,domain,username="",salt="",length=12,punctuation=False):
 	if(length > int(256/6)):
 		raise "Error, length is too large for this hash function"
 	metasalt=bytearray(username+"|"+domain+"|"+salt,'utf-8')
 	master=bytearray(master,'utf-8')
-	bytes=pbkdf2_256(hmac_sha256,master,metasalt,1 << 12)
+	bytes=pbkdf2_256(hmac_sha256,master,metasalt,(1 << 12))
 	return makepassword(bytes,length,punctuation)
 	
 if __name__=='__main__':
@@ -49,3 +58,7 @@ if __name__=='__main__':
 	print(nsa)
 	mst=getpass.getpass("Master password:")
 	print(superpass(mst,**nsa))
+	
+def canonical_domains():
+	pass	#/use list of known domains->domain mappings
+	pass	#/canonical wordlist..passwords MUST come from that list and MUST be >6 long...maybe...maybe not.
