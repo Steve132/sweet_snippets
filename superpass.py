@@ -1,5 +1,6 @@
 import hmac
 import hashlib
+from binascii import hexlify,unhexlify
 
 def hmac_sha256(key,msg):
 	return hmac.new(key,msg,hashlib.sha256).digest()
@@ -7,11 +8,13 @@ def hmac_sha256(key,msg):
 def pbkdf2_256(PRF,Password,Salt,c):
 	#this assumes that hlen=dkLen...so don't concatenate
 	U=PRF(Password,Salt)
+	OUT=0
 	for i in range(1,c):
 		U=PRF(Password,U)
-	return U
+		Ui=int(hexlify(U),16)
+		OUT ^= Ui
+	return unhexlify("{:064X}".format(OUT))
 
-from binascii import hexlify
 import string
 #replace .! with 01 if punctuation is false..64-character dictionary 
 def makepassword(bytes,length,punctuation=False):
@@ -61,3 +64,6 @@ if __name__=='__main__':
 	mst=getpass.getpass("Master password:")
 	print(superpass(mst,**nsa))
 	
+def canonical_domains():
+	pass	#/use list of known domains->domain mappings
+	pass	#/canonical wordlist..passwords MUST come from that list and MUST be >6 long...maybe...maybe not.
