@@ -150,7 +150,7 @@ public:
 	
 	SHT(size_t bds=1,size_t rows=0):bands(bds),num_coeffs(triangle_index_positive(bds,bds)),input_rows(rows)
 	{
-		fft.SetFlag(Eigen::FFT::Unscaled,Eigen::FFT::HalfSpectrum);
+		fft.SetFlag(Eigen::FFT::Unscaled,Eigen::FFT::HalfSpectrum); //there's a dangling 1/sqrt(2 pi) that needs to be applied.
 		build_constants();
 	}
 	
@@ -170,23 +170,24 @@ public:
 			//this can also be parallel.
 			for(size_t i=0;i<vcos.size();i++)
 			{
+				std::complex<RealType> sample=f_m_theta(i,m);
 				long double st=vsin[i];
 				long double ct=vcos[i];
 				long double slm=vsinmrow[i];
-				long double Pm2=alocal[0]*slm*st*dtheta;
-				ncoeffs[0]+=Pm2;
+				long double Pm2=alocal[0]*slm;
+				ncoeffs[0]+=sample*Pm2*st*dtheta;
 				long double Pm1;
 				if(m+1 < bands)
 				{
-					Pm1=alocal[1]*Pm1*ct*dtheta;
-					ncoeffs[1]+=Pm1;
+					Pm1=alocal[1]*Pm1*ct;
+					ncoeffs[1]+=sample*Pm1*st*dtheta;
 				}
 				//cannot be parallel...A and B should REALLY be interleaved for cache
 				for(size_t noffset=2;noffset<(bands+m);noffset++)
 				{
-					long double Pc=alocal[noffset]*ct*Pc1+blocal[noffset]*Pc2;
+					long double Pc=alocal[noffset]*ct*Pm1+blocal[noffset]*Pc2;
 					Pc2=Pc1;Pc1=Pc;
-					ncoeffs[noffset]+=Pc;
+					ncoeffs[noffset]+=sample*Pc*st*dtheta;
 				}
 			}
 		}
