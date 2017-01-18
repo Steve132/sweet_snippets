@@ -5,11 +5,12 @@
 //Implementation of this paper
 //https://arxiv.org/pdf/1202.6522.pdf
 
-static const long double M_PI_LD=3.141592653589793238462643383279502884197169399375105820974944592307816406286208998L;
-template<class RealType>
+template<class RealType,class HighPrecisionReal=long double>
 class rSHT
 {
 private:
+	static const HighPrecisionReal M_PI_LD=3.141592653589793238462643383279502884197169399375105820974944592307816406286208998L;
+
 	static size_t triangle_index_positive(size_t m,size_t n)
 	{
 		//n >= m, so triangle column offset is n-m....row offset is (m*(m+1))/2
@@ -20,25 +21,23 @@ private:
 		i=(m*(m+1))/2 + n - m
 	}
 	
-	std::vector<long double> a;
-	std::vector<long double> b;
+	std::vector<HighPrecisionReal> ab;
 	Eigen::FFT fft;
-	std::vector<long double> vcos,vsin;
-	std::vector<long double> vsinm; //should this be built or computed with expontentiation by squaring. 
-	long double rowsize;
+	std::vector<HighPrecisionReal> vcos,vsin;
+	std::vector<HighPrecisionReal> vsinm; //should this be built or computed with expontentiation by squaring. 
+	HighPrecisionReal rowsize;
 	
 	void build_constants()
 	{
 		size_t Tn=triangle_index_positive(bands,bands);
-		a.resize(Tn);
-		b.resize(Tn);
+		ab.resize(2*Tn);
 		
-		std::vector<long double> a2(bands);
+		std::vector<HighPrecisionReal> a2(bands);
 		a2[0]=1.0L/(4.0L*M_PI_LD);
 		for(size_t k=1;k<bands;k++)
 		{
-			long double p=k*2;
-			long double p2=k*2+1;
+			HighPrecisionReal p=k*2;
+			HighPrecisionReal p2=k*2+1;
 			a2[k]=a2[k-1]*(p2/p);
 		}
 
@@ -49,10 +48,13 @@ private:
 			for(size_t n=m;n<bands;n++)
 			{
 				size_t tindex=triangle_index_positive(m,n);
-				a[tindex]= (m==n) ? (sqrtl(a2[m])) : (sqrtl(static_cast<long double>(4*n*n-1)/static_cast<long double>(n*n-m*m)));
+				HighPrecisionReal a= (m==n) ? (sqrt(a2[m])) : (sqrt(static_cast<HighPrecisionReal>(4*n*n-1)/static_cast<HighPrecisionReal>(n*n-m*m)));
 				size_t bnum=(2*n+1)*((n-1)*(n-1)-m*m);
 				size_t bden=(2*n-3)*(n*n-m*m);
-				b[tindex]=-sqrtl(static_cast<long double>(bnum)/static_cast<long double>(bden));
+				HighPrecisionReal b=(n-m < 1) ? 0.0L : -sqrt(static_cast<HighPrecisionReal>(bnum)/static_cast<HighPrecisionReal>(bden));
+				ab[2*tindex]=a;
+				ab[2*tindex+1]=b;
+				
 				//Notes (obsolete):
 				//https://www.wolframalpha.com/input/?i=product+from+k%3D1+to+m+of+(2k%2B1)%2F(2k)
 				//is it faster or more accurate to compute this in a DP fashion instead of this						
@@ -67,26 +69,27 @@ private:
 	
 	
 		//go ahead and parallize this one...it should be hot across the i axis...
-		vsinm=std::vector<long double>(input_rows*bands,1.0L);
+		vsinm=std::vector<HighPrecisionReal>(input_rows*bands,1.0L);
 		rowsize=M_PI_LD/input_rows;
 		#pragma omp parallel for
 		for(size_t theta_i=0;theta_i < input_rows;theta_i++)
 		{
-			long double theta=rowsize*(static_cast<long_double>(theta_i)+0.5L);
-			vcos[theta_i]=cosl(theta);
-			long double stm=sinl(theta);
-			vsin[theta_i]=stm;
-			long double current_stm=1.0;
+			HighPrecisionReal theta=rowsize*(static_cast<HighPrecisionReal>(theta_i)+0.5L);
+			HighPrecisionReal ct=cos(theta)
+			HighPrecisionReal st=sin(theta);
+			vcos[theta_i]=ct;
+			vsin[theta_i]=st;
+			HighPrecisionReal current_stm=1.0;
 			for(size_t m=0;m<bands;m++)
 			{
-				vsinm[m*input_rows+theta_i]=current_stm;
-				current_stm*=stm;
+				vsinmoct[m*input_rows+theta_i]=current_stm/ct;
+				current_stm*=st;
 			}
 		}
 
 	}
 	
-	Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic> 
+	Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> 
 	fftMatrix(const Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>& latlong)
 	{
 		size_t nfft=bands*2;
@@ -95,7 +98,7 @@ private:
 		
 		Eigen::Matrix<std::complex<RealType>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> fftresult(latlong.rows(),ftosize);
 		std::complex<RealType>* dop=fftresult.data();
-		RealType* dip=latlong.data();
+		const RealType* dip=latlong.data();
 		
 		#pragma omp parallel for
 		for(size_t r=0;r<latlong.rows();r++)
@@ -103,8 +106,82 @@ private:
 			fft.fwd(dop+r*sizeof(std::complex<RealType>)*ftosize,dip+r*sizeof(RealType)*ffromsize,nfft);
 		}
 		
-		return fftresult; //possibly cast to column major version explicitly?
+		return fftresult;
 	}
+		
+	void ifftMatrix(Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>& latlong,
+		const Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>& freqdomain)
+	{
+		size_t nfft=bands*2;
+		size_t ffromsize=nfft/2+1;
+		size_t ftosize=bands*2;
+		
+		const std::complex<RealType>* dip=freqdomain.data();
+		RealType* dop=latlong.data();
+		
+		#pragma omp parallel for
+		for(size_t r=0;r<latlong.rows();r++)
+		{
+			fft.inv(dop+r*sizeof(RealType)*ftosize,dip+r*sizeof(std::complex<RealType>)*ffromsize,nfft);
+		}
+	}
+	
+	class PBandIteratorBuilder
+	{
+	public:
+		size_t fb_index;
+		HighPrecisionReal dtheta;
+		HighPrecisionReal* vsinmoctrow;
+		HighPrecisionReal* ablocal;
+		
+		PBandIteratorBuilder(const rSHT& parent,size_t m):
+			fb_index(triangle_index_positive(m,m)),
+			dtheta(parent.rowsize),
+			vsinmoctrow(&parent.vsinmoct[m*parent.input_rows]),
+			ablocal(&parent.ab[2*fb_index])
+		{}
+	};
+	class PBandIterator
+	{
+	private:
+		HighPrecisionReal st;
+		HighPrecisionReal ct;
+		HighPrecisionReal slmoct;
+	
+		HighPrecisionReal Pm2;
+		HighPrecisionReal Pm1;
+		const HighPrecisionReal* ablocal;
+	public:
+		size_t niters;
+		size_t noffset;
+		
+		PBandIterator(const rSHT& parent,const PBandIteratorBuilder& pbuilder,size_t m,size_t i):
+			st(vsin[i]),
+			ct(vcos[i]),
+			slmoct(vsinmoctrow[i]),
+			Pm2(0.0),
+			Pm1(slmoct),
+			ablocal(pbuilder.ablocal),
+			niters(bands+m),
+			noffset(0)
+		{}
+		HighPrecisionReal next()
+		{
+			//Pc[0] needs to be alocal[0]*slm..which is right as long as b[0],b[1] is 0
+			//Pc[1] needs to be alocal[1]*ct*Pc[0]
+			//Pc[x] = alocal[x]*ct*Pc[x-1]+b[x]*Pc[x-2]
+			//ablocal is cache coherent now.
+			size_t dex=2*noffset;
+			HighPrecisionReal Pc=ablocal[dex]*ct*Pm1+ablocal[dex+1]*Pm2;
+			Pm2=Pm1;Pm1=Pc;
+			return Pc;
+		}
+		operator bool() const
+		{
+			return noffset < niters;
+		}
+		
+	};
 public: 
 
 	class Coefficients
@@ -162,35 +239,51 @@ public:
 		#pragma omp parallel for
 		for(size_t m=0;m<bands;m++)
 		{
-			long double dtheta=rowsize;
-			long double *vsinmrow;
-			std::complex<RealType>* ncoeffs=&out.data[triangle_index_positive(m,m)];
-			long double* alocal=&a[triangle_index_positive(m,m)];
-			long double* blocal=&b[triangle_index_positive(m,m)];
-			//this can also be parallel.
-			for(size_t i=0;i<vcos.size();i++)
+			PBandIteratorBuilder piterbuilder(*this,m);
+			std::complex<RealType>* ncoeffs=&out.data[piterbuilder.fb_index];
+			
+			//this can also be parallel...but you have to have an atomic sum around the writeback, which is, of course, a pain.
+			for(size_t theta_i=0;theta_i<vcos.size();theta_i++)
 			{
-				std::complex<RealType> sample=f_m_theta(i,m);
-				long double st=vsin[i];
-				long double ct=vcos[i];
-				long double slm=vsinmrow[i];
-				long double Pm2=alocal[0]*slm;
-				ncoeffs[0]+=sample*Pm2*st*dtheta;
-				long double Pm1;
-				if(m+1 < bands)
+				std::complex<RealType> sample=f_m_theta(theta_i,m);
+				PBandIterator piter(*this,piterbuilder,m,theta_i);
+			
+				//cannot be parallel...
+				while(piter)
 				{
-					Pm1=alocal[1]*Pm1*ct;
-					ncoeffs[1]+=sample*Pm1*st*dtheta;
-				}
-				//cannot be parallel...A and B should REALLY be interleaved for cache
-				for(size_t noffset=2;noffset<(bands+m);noffset++)
-				{
-					long double Pc=alocal[noffset]*ct*Pm1+blocal[noffset]*Pc2;
-					Pc2=Pc1;Pc1=Pc;
-					ncoeffs[noffset]+=sample*Pc*st*dtheta;
+					size_t noffset=piter->noffset;
+					ncoeffs[noffset]+=sample*piter->next()*st*dtheta;
 				}
 			}
 		}
+		return out;
+	}
+	
+	void inv(Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>& out,const Coefficients& coeffs)
+	{
+		Eigen::Matrix<std::complex<RealType>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> f_m_theta(input_rows,bands);
+		#pragma omp parallel for
+		for(size_t m=0;m<bands;m++)
+		{
+			PBandIteratorBuilder piterbuilder(*this,m);
+			const std::complex<RealType>* clocal=&coeffs.data[piterbuilder.fb_index];
+			
+			//this can also be parallel...make it 2d?
+			for(size_t theta_i=0;theta_i<vcos.size();theta_i++)
+			{
+				PBandIterator piter(*this,piterbuilder,m,theta_i);
+				std::complex<RealType> sumvalue(0.0,0.0);
+				
+				//cannot be parallel...
+				while(piter)
+				{
+					size_t noffset=piter.noffset;
+					sumvalue+=clocal[noffset]*piter->next();
+				}
+				f_m_theta(theta_i,m)=sumvalue;
+			}
+		}
+		ifftMatrix(out,f_m_theta);
 		return out;
 	}
 };
