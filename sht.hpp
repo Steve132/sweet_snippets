@@ -16,15 +16,15 @@ private:
 		//n >= m, so triangle column offset is n-m....row offset is (m*(m+1))/2
 		return (m*(m+1))/2 + n - m;
 	}
-	static array<size_t,size_t> triangle_unindex_positive(size_t i)
+	/*static array<size_t,size_t> triangle_unindex_positive(size_t i)
 	{
 		i=(m*(m+1))/2 + n - m
-	}
+	}*/
 	
 	std::vector<HighPrecisionReal> ab;
-	Eigen::FFT fft;
+	Eigen::FFT<RealType> fft;
 	std::vector<HighPrecisionReal> vcos,vsin;
-	std::vector<HighPrecisionReal> vsinm; //should this be built or computed with expontentiation by squaring. 
+	std::vector<HighPrecisionReal> vsinmoct; //should this be built or computed with expontentiation by squaring. 
 	HighPrecisionReal rowsize;
 	
 	void build_constants()
@@ -69,13 +69,13 @@ private:
 	
 	
 		//go ahead and parallize this one...it should be hot across the i axis...
-		vsinm=std::vector<HighPrecisionReal>(input_rows*bands,1.0L);
+		vsinmoct=std::vector<HighPrecisionReal>(input_rows*bands,1.0L);
 		rowsize=M_PI_LD/input_rows;
 		#pragma omp parallel for
 		for(size_t theta_i=0;theta_i < input_rows;theta_i++)
 		{
 			HighPrecisionReal theta=rowsize*(static_cast<HighPrecisionReal>(theta_i)+0.5L);
-			HighPrecisionReal ct=cos(theta)
+			HighPrecisionReal ct=cos(theta);
 			HighPrecisionReal st=sin(theta);
 			vcos[theta_i]=ct;
 			vsin[theta_i]=st;
@@ -131,8 +131,8 @@ private:
 	public:
 		size_t fb_index;
 		HighPrecisionReal dtheta;
-		HighPrecisionReal* vsinmoctrow;
-		HighPrecisionReal* ablocal;
+		const HighPrecisionReal* vsinmoctrow;
+		const HighPrecisionReal* ablocal;
 		
 		PBandIteratorBuilder(const rSHT& parent,size_t m):
 			fb_index(triangle_index_positive(m,m)),
@@ -144,25 +144,25 @@ private:
 	class PBandIterator
 	{
 	private:
-		HighPrecisionReal st;
-		HighPrecisionReal ct;
 		HighPrecisionReal slmoct;
 	
 		HighPrecisionReal Pm2;
 		HighPrecisionReal Pm1;
 		const HighPrecisionReal* ablocal;
 	public:
+		HighPrecisionReal st;
+		HighPrecisionReal ct;
 		size_t niters;
 		size_t noffset;
 		
 		PBandIterator(const rSHT& parent,const PBandIteratorBuilder& pbuilder,size_t m,size_t i):
-			st(vsin[i]),
-			ct(vcos[i]),
-			slmoct(vsinmoctrow[i]),
+			st(parent.vsin[i]),
+			ct(parent.vcos[i]),
+			slmoct(pbuilder.vsinmoctrow[i]),
 			Pm2(0.0),
 			Pm1(slmoct),
 			ablocal(pbuilder.ablocal),
-			niters(bands+m),
+			niters(parent.bands+m),
 			noffset(0)
 		{}
 		HighPrecisionReal next()
@@ -198,7 +198,7 @@ public:
 		};*/
 	public:
 		size_t bands;
-		std::vector<std::complex<RealType>> data;
+		std::vector<std::complex<RealType> > data;
 		
 		const std::complex<RealType>& coeff(int m,int n) const
 		{
@@ -225,9 +225,13 @@ public:
 	const size_t num_coeffs;
 	const size_t input_rows;
 	
-	SHT(size_t bds=1,size_t rows=0):bands(bds),num_coeffs(triangle_index_positive(bds,bds)),input_rows(rows)
+	rSHT(size_t bds=1,size_t rows=0):
+		bands(bds),
+		num_coeffs(triangle_index_positive(bds,bds)),
+		input_rows(rows)
 	{
-		fft.SetFlag(Eigen::FFT::Unscaled,Eigen::FFT::HalfSpectrum); //there's a dangling 1/sqrt(2 pi) that needs to be applied.
+		fft.SetFlag(Eigen::FFT<RealType>::Unscaled ); //there's a dangling 1/sqrt(2 pi) that needs to be applied.
+		fft.SetFlag(Eigen::FFT<RealType>::HalfSpectrum );
 		build_constants();
 	}
 	
@@ -235,7 +239,8 @@ public:
 	void fwd(Coefficients& out,const Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>& latlong)
 	{
 		Eigen::Matrix<std::complex<RealType>,Eigen::Dynamic,Eigen::Dynamic> f_m_theta=fftMatrix(latlong);
-		out.data.fill(0);
+		out.data.assign(num_coeffs,std::complex<RealType>(0.0,0.0));
+		out.bands=bands;
 		#pragma omp parallel for
 		for(size_t m=0;m<bands;m++)
 		{
@@ -251,12 +256,11 @@ public:
 				//cannot be parallel...
 				while(piter)
 				{
-					size_t noffset=piter->noffset;
-					ncoeffs[noffset]+=sample*piter->next()*st*dtheta;
+					size_t noffset=piter.noffset;
+					ncoeffs[noffset]+=static_cast<RealType>(piter.next()*piter.st*piterbuilder.dtheta)*sample;
 				}
 			}
 		}
-		return out;
 	}
 	
 	void inv(Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>& out,const Coefficients& coeffs)
@@ -284,6 +288,5 @@ public:
 			}
 		}
 		ifftMatrix(out,f_m_theta);
-		return out;
 	}
 };
