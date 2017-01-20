@@ -89,7 +89,7 @@ private:
 
 	}
 	
-	Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> 
+	Eigen::Matrix<std::complex<RealType>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> 
 	fftMatrix(const Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>& latlong)
 	{
 		size_t nfft=bands*2;
@@ -110,7 +110,7 @@ private:
 	}
 		
 	void ifftMatrix(Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>& latlong,
-		const Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>& freqdomain)
+		const Eigen::Matrix<std::complex<RealType>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>& freqdomain)
 	{
 		size_t nfft=bands*2;
 		size_t ffromsize=nfft/2+1;
@@ -266,6 +266,7 @@ public:
 	void inv(Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>& out,const Coefficients& coeffs)
 	{
 		Eigen::Matrix<std::complex<RealType>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> f_m_theta(input_rows,bands);
+#ifndef SHT_DOUBLE_PARALLEL_INV
 		#pragma omp parallel for
 		for(size_t m=0;m<bands;m++)
 		{
@@ -275,6 +276,18 @@ public:
 			//this can also be parallel...make it 2d?
 			for(size_t theta_i=0;theta_i<vcos.size();theta_i++)
 			{
+#else
+		#pragma omp parallel for
+		size_t tim=bands*input_rows;
+		for(size_t im_index=0;im_index<tim
+		{
+			size_t theta_i=im_index % input_rows;
+			size_t m=im_index/input_rows;
+			
+			PBandIteratorBuilder piterbuilder(*this,m);
+			const std::complex<RealType>* clocal=&coeffs.data[piterbuilder.fb_index];
+			{
+#endif
 				PBandIterator piter(*this,piterbuilder,m,theta_i);
 				std::complex<RealType> sumvalue(0.0,0.0);
 				
@@ -282,7 +295,7 @@ public:
 				while(piter)
 				{
 					size_t noffset=piter.noffset;
-					sumvalue+=clocal[noffset]*piter->next();
+					sumvalue+=clocal[noffset]*static_cast<RealType>(piter.next());
 				}
 				f_m_theta(theta_i,m)=sumvalue;
 			}
