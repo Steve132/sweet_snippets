@@ -1,6 +1,7 @@
 #include<Eigen/Dense>
 #include<unsupported/Eigen/FFT>
 #include<cmath>
+#include<iostream>
 
 //Implementation of this paper
 //https://arxiv.org/pdf/1202.6522.pdf
@@ -34,12 +35,15 @@ private:
 		
 		std::vector<HighPrecisionReal> a2(bands);
 		a2[0]=1.0L/(4.0L*M_PI_LD);
+		std::cerr << "constant 0" << std::endl;
+
 		for(size_t k=1;k<bands;k++)
 		{
 			HighPrecisionReal p=k*2;
 			HighPrecisionReal p2=k*2+1;
 			a2[k]=a2[k-1]*(p2/p);
 		}
+		std::cerr << "constant 1" << std::endl;
 
 		#pragma omp parallel for
 		for(size_t m=0;m<bands;m++)
@@ -67,9 +71,12 @@ private:
 			}
 		}
 	
-	
+		std::cerr << "constant 2" << std::endl;
+
 		//go ahead and parallize this one...it should be hot across the i axis...
-		vsinmoct=std::vector<HighPrecisionReal>(input_rows*bands,1.0L);
+		vsinmoct.resize(input_rows*bands,1.0L);
+		vcos.resize(input_rows);
+		vsin.resize(input_rows);
 		rowsize=M_PI_LD/input_rows;
 		#pragma omp parallel for
 		for(size_t theta_i=0;theta_i < input_rows;theta_i++)
@@ -86,6 +93,7 @@ private:
 				current_stm*=st;
 			}
 		}
+		std::cerr << "constant 3" << std::endl;
 
 	}
 	
@@ -95,16 +103,21 @@ private:
 		size_t nfft=bands*2;
 		size_t ftosize=nfft/2+1;
 		size_t ffromsize=latlong.cols();
-		
+		std::cerr << "fft 0" << std::endl;
+
 		Eigen::Matrix<std::complex<RealType>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> fftresult(latlong.rows(),ftosize);
 		std::complex<RealType>* dop=fftresult.data();
 		const RealType* dip=latlong.data();
 		
 		#pragma omp parallel for
 		for(size_t r=0;r<latlong.rows();r++)
-		{
-			fft.fwd(dop+r*sizeof(std::complex<RealType>)*ftosize,dip+r*sizeof(RealType)*ffromsize,nfft);
+		{		
+			//std::cerr << "fft 0.:" << r << std::endl;
+			fft.fwd(dop+r*ftosize,dip+r*ffromsize,nfft);
 		}
+		
+		std::cerr << "fft 1" << std::endl;
+
 		
 		return fftresult;
 	}
@@ -116,13 +129,15 @@ private:
 		size_t ffromsize=nfft/2+1;
 		size_t ftosize=bands*2;
 		
+		std::cerr << "ifft 0" << std::endl;
+
 		const std::complex<RealType>* dip=freqdomain.data();
 		RealType* dop=latlong.data();
 		
 		#pragma omp parallel for
 		for(size_t r=0;r<latlong.rows();r++)
 		{
-			fft.inv(dop+r*sizeof(RealType)*ftosize,dip+r*sizeof(std::complex<RealType>)*ffromsize,nfft);
+			fft.inv(dop+r*ftosize,dip+r*ffromsize,nfft);
 		}
 	}
 	
@@ -171,7 +186,7 @@ private:
 			//Pc[1] needs to be alocal[1]*ct*Pc[0]
 			//Pc[x] = alocal[x]*ct*Pc[x-1]+b[x]*Pc[x-2]
 			//ablocal is cache coherent now.
-			size_t dex=2*noffset;
+			size_t dex=2*(noffset++);
 			HighPrecisionReal Pc=ablocal[dex]*ct*Pm1+ablocal[dex+1]*Pm2;
 			Pm2=Pm1;Pm1=Pc;
 			return Pc;
@@ -238,9 +253,13 @@ public:
 	//only works if row-major.
 	void fwd(Coefficients& out,const Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>& latlong)
 	{
+		std::cerr << "fwd 0" << std::endl;
+
 		Eigen::Matrix<std::complex<RealType>,Eigen::Dynamic,Eigen::Dynamic> f_m_theta=fftMatrix(latlong);
 		out.data.assign(num_coeffs,std::complex<RealType>(0.0,0.0));
 		out.bands=bands;
+		std::cerr << "fwd 1" << std::endl;
+
 		#pragma omp parallel for
 		for(size_t m=0;m<bands;m++)
 		{
@@ -257,14 +276,19 @@ public:
 				while(piter)
 				{
 					size_t noffset=piter.noffset;
+					//std::cerr << "fwd 1.:(" << m << "," << theta_i << "," << noffset << ")" << std::endl;
+
 					ncoeffs[noffset]+=static_cast<RealType>(piter.next()*piter.st*piterbuilder.dtheta)*sample;
 				}
 			}
 		}
+		std::cerr << "fwd 2" << std::endl;
 	}
 	
 	void inv(Eigen::Matrix<RealType,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>& out,const Coefficients& coeffs)
 	{
+		std::cerr << "inv 0" << std::endl;
+
 		Eigen::Matrix<std::complex<RealType>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> f_m_theta(input_rows,bands);
 #ifndef SHT_DOUBLE_PARALLEL_INV
 		#pragma omp parallel for
@@ -288,6 +312,8 @@ public:
 			const std::complex<RealType>* clocal=&coeffs.data[piterbuilder.fb_index];
 			{
 #endif
+				//std::cerr << "inv 0.:" << std::endl;
+
 				PBandIterator piter(*this,piterbuilder,m,theta_i);
 				std::complex<RealType> sumvalue(0.0,0.0);
 				
@@ -300,6 +326,8 @@ public:
 				f_m_theta(theta_i,m)=sumvalue;
 			}
 		}
+		std::cerr << "inv 1" << std::endl;
+
 		ifftMatrix(out,f_m_theta);
 	}
 };
