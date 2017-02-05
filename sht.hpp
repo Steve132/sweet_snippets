@@ -10,7 +10,7 @@ template<class RealType,class HighPrecisionReal=long double>
 class rSHT
 {
 private:
-	static const HighPrecisionReal M_PI_LD=3.141592653589793238462643383279502884197169399375105820974944592307816406286208998L;
+	static const constexpr HighPrecisionReal M_PI_LD=3.141592653589793238462643383279502884197169399375105820974944592307816406286208998L;
 
 	static size_t triangle_index_positive(size_t m,size_t n)
 	{
@@ -35,6 +35,7 @@ private:
 		
 		std::vector<HighPrecisionReal> a2(bands);
 		a2[0]=1.0L/(4.0L*M_PI_LD);
+		//a2[0]/=static_cast<HighPrecisionReal>(4*bands*bands);
 		std::cerr << "constant 0" << std::endl;
 
 		for(size_t k=1;k<bands;k++)
@@ -114,6 +115,8 @@ private:
 		{		
 			//std::cerr << "fft 0.:" << r << std::endl;
 			fft.fwd(dop+r*ftosize,dip+r*ffromsize,nfft);
+ 			
+			//std::cerr << "fft 0." << r << ' ' << *(dop+r*ftosize) << std::endl;
 		}
 		
 		std::cerr << "fft 1" << std::endl;
@@ -177,7 +180,7 @@ private:
 			Pm2(0.0),
 			Pm1(slmoct),
 			ablocal(pbuilder.ablocal),
-			niters(parent.bands+m),
+			niters(parent.bands-m),
 			noffset(0)
 		{}
 		HighPrecisionReal next()
@@ -215,7 +218,7 @@ public:
 		size_t bands;
 		std::vector<std::complex<RealType> > data;
 		
-		const std::complex<RealType>& coeff(int m,int n) const
+		std::complex<RealType> operator()(int m,int n) const
 		{
 			int am=(m < 0) ? -m : m;
 			if(n >= bands || n > am || n < 0)
@@ -245,7 +248,8 @@ public:
 		num_coeffs(triangle_index_positive(bds,bds)),
 		input_rows(rows)
 	{
-		fft.SetFlag(Eigen::FFT<RealType>::Unscaled ); //there's a dangling 1/sqrt(2 pi) that needs to be applied.
+		//fft.SetFlag(Eigen::FFT<RealType>::Unscaled ); //there's a dangling 1/sqrt(2 pi) that needs to be applied.
+		//fft.SetFlag(Eigen::FFT<RealType>::Un
 		fft.SetFlag(Eigen::FFT<RealType>::HalfSpectrum );
 		build_constants();
 	}
@@ -257,8 +261,14 @@ public:
 
 		Eigen::Matrix<std::complex<RealType>,Eigen::Dynamic,Eigen::Dynamic> f_m_theta=fftMatrix(latlong);
 		out.data.assign(num_coeffs,std::complex<RealType>(0.0,0.0));
+		
 		out.bands=bands;
 		std::cerr << "fwd 1" << std::endl;
+		
+		RealType fftscal=2*bands;
+		fftscal=1.0/fftscal;
+		//fftscal=1.0;
+		
 
 		#pragma omp parallel for
 		for(size_t m=0;m<bands;m++)
@@ -266,19 +276,26 @@ public:
 			PBandIteratorBuilder piterbuilder(*this,m);
 			std::complex<RealType>* ncoeffs=&out.data[piterbuilder.fb_index];
 			
+			
 			//this can also be parallel...but you have to have an atomic sum around the writeback, which is, of course, a pain.
 			for(size_t theta_i=0;theta_i<vcos.size();theta_i++)
 			{
-				std::complex<RealType> sample=f_m_theta(theta_i,m);
+				std::complex<RealType> sample=f_m_theta(theta_i,m)*fftscal;
+				//std::cerr << sample << std::endl;
 				PBandIterator piter(*this,piterbuilder,m,theta_i);
 			
 				//cannot be parallel...
 				while(piter)
 				{
 					size_t noffset=piter.noffset;
-					//std::cerr << "fwd 1.:(" << m << "," << theta_i << "," << noffset << ")" << std::endl;
-
-					ncoeffs[noffset]+=static_cast<RealType>(piter.next()*piter.st*piterbuilder.dtheta)*sample;
+					double P=piter.next();
+					
+					if(m==0 && noffset==0)
+					{
+						//std::cerr << "fwd 1.:(" << m << "," << theta_i << "," << noffset << ")=" << P << std::endl;
+					}
+					//std::cerr << (ncoeffs-out.data.data()) << ',' << noffset << std::endl;
+					ncoeffs[noffset]+=static_cast<RealType>(P*piter.st*piterbuilder.dtheta)*sample;
 				}
 			}
 		}
@@ -290,6 +307,10 @@ public:
 		std::cerr << "inv 0" << std::endl;
 
 		Eigen::Matrix<std::complex<RealType>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> f_m_theta(input_rows,bands);
+		
+		RealType ifftscal=1.0/(2*bands);
+		
+		
 #ifndef SHT_DOUBLE_PARALLEL_INV
 		#pragma omp parallel for
 		for(size_t m=0;m<bands;m++)
@@ -323,7 +344,7 @@ public:
 					size_t noffset=piter.noffset;
 					sumvalue+=clocal[noffset]*static_cast<RealType>(piter.next());
 				}
-				f_m_theta(theta_i,m)=sumvalue;
+				f_m_theta(theta_i,m)=sumvalue*ifftscal;
 			}
 		}
 		std::cerr << "inv 1" << std::endl;
