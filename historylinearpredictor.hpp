@@ -37,6 +37,23 @@ private:
 	LDL<Eigen::MatrixXd,double> ldl;
 	
 public:
+	class Predictor: public CircularHistoryBase
+	{
+	public:
+		MatrixXd coefficients;	//should this design make the coeffs transposed?  Yes.
+		HistoryLinearPredictor(size_t nh,size_t no,size_t ni,const MatrixXd& c=MatrixXd(no,ni*nh))
+			CircularHistoryBase(nh,no,ni)
+		{}
+		void update(const double* input,size_t num_inputs_array=1)
+		{
+			history_append(input,num_inputs_array);
+		}
+		VectorXd predict() const
+		{
+			return coefficients*history_queue;
+		}
+	};
+
 	Eigen::MatrixXd lefttracker;
 	
 	HistoryLinearModel(size_t nh,size_t no,size_t ni):
@@ -61,19 +78,4 @@ public:
 	}
 };
 
-class HistoryLinearPredictor: public CircularHistoryBase
-{
-public:
-	MatrixXd coefficients;	//should this design make the coeffs transposed?  Yes.
-	HistoryLinearPredictor(size_t nh,size_t no,size_t ni,const MatrixXd& c=MatrixXd(no,ni*nh))
-		CircularHistoryBase(nh,no,ni)
-	{}
-	void update(const double* input,size_t num_inputs_array=1)
-	{
-		history_append(input,num_inputs_array);
-	}
-	VectorXd predict() const
-	{
-		return coefficients*history_queue;
-	}
-};
+
