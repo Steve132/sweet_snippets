@@ -1,15 +1,20 @@
 import hmac,hashlib
 from binascii import unhexlify,hexlify
 
-def pbkdf2_hmac_sha256(password,salt,c):
+def pbkdf2_hmac(password,salt,c,digestmod=hashlib.sha256):
+	digest_size=digestmod().digest_size
+	formatstring="%0"+str(2*digest_size)+"X"
 	def prf(pwd,nacl):
-		return int(hmac.new(pwd,nacl,digestmod=hashlib.sha256).hexdigest(),16)
+		return int(hmac.new(pwd,nacl,digestmod=digestmod).hexdigest(),16)
 	U=prf(password,salt+'\x00\x00\x00\x01')
 	T=0
 	for i in range(c):
 		T^=U
-		U=prf(password,unhexlify("%064X" % (U)))
-	return unhexlify("%064X" %(T))
+		U=prf(password,unhexlify(formatstring % (U)))
+	return unhexlify(formatstring % (T))
+
+def pbkdf2_hmac_sha256(password,salt,c):
+	return pbkdf2_hmac(password,salt,c,digestmod=hashlib.sha256)
 	
 if __name__=='__main__':
 	from hashlib import pbkdf2_hmac
