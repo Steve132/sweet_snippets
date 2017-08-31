@@ -33,3 +33,18 @@ class matchset(object):
 			bid=b & self.mask if self.mask else b
 			self.matches.setdefault(bid,[]).append((label,i))
 	
+"""
+better LSH
+
+
+multi-dimensional normal distribution is perfectly spherically symmetric..  Normalize to get distribution over an N ball, n-ball times 
+
+https://www.mat.ulaval.ca/fileadmin/mat/documents/lrivest/Publications/77-LeonMasseRivest2006.pdf
+http://www.sciencedirect.com/science/article/pii/S0047259X10001211
+
+First, normalize with PCA, as in, mean-center the data, then find a find a low-dimensional orthornormal version of the mean-centered data.
+
+Then do LSH projections and bitwise sampling.
+
+sort all points by gray codes to minimize number of adjacent transitions.
+"""
