@@ -30,7 +30,7 @@ public:
 		num_history(nh),
 		num_outputs(no),
 		num_inputs(ni),
-		history_queue(nh*ni,1)
+		history_queue(Eigen::VectorXd::Zero(nh*ni))
 	{}
 };
 
@@ -61,7 +61,7 @@ class HistoryLinearModel: public CircularHistoryBase
 {
 private:
 	Eigen::LDLT<Eigen::MatrixXd> ldl;
-	
+	Eigen::MatrixXd AtA;
 public:
 	Eigen::MatrixXd lefttracker;
 	
@@ -71,18 +71,46 @@ public:
 		lefttracker(Eigen::MatrixXd::Zero(ni*nh,no))
 	{
 		ldl.setZero();
+		AtA=Eigen::MatrixXd::Zero(history_queue.rows(),history_queue.rows());
 	}
 	//potentially erase from the end of the queue if history length is limited...
-	void train(const double* output,const double* input)
+	void train(const double* predicted,const double* current)  //
 	{
-		history_append(input,1);
-		Eigen::Map<const Eigen::MatrixXd> outpm(output,1,num_outputs);
+		history_append(current,1);
+		Eigen::Map<const Eigen::MatrixXd> outpm(predicted,1,num_outputs);
 		
 		lefttracker+=history_queue*outpm;
-		ldl.rankUpdate(history_queue);
+		AtA+=history_queue*history_queue.transpose();
+		//ldl.rankUpdate(history_queue);
+		
+		//
+		
+		//(A^T A)^-1 A^t*outpm=input;
 	}
+	
 	HistoryLinearPredictor predictor() const
 	{
-		return HistoryLinearPredictor(num_history,num_outputs,num_inputs,ldl.solve(lefttracker).transpose());
+		//return HistoryLinearPredictor(num_history,num_outputs,num_inputs,ldl.solve(lefttracker).transpose());
+		return HistoryLinearPredictor(num_history,num_outputs,num_inputs,AtA.ldlt().solve(lefttracker).transpose());
+	}
+};
+
+class EquispacedHistoryLinearModel: public HistoryLinearModel
+{
+protected:
+	std::vector<double> equispace_queue;
+	size_t current_queue_depth;
+public:
+	unsigned int steplength;
+	
+	EquispacedHistoryLinearModel(size_t nh,size_t no,size_t ni,unsigned int sl=1):
+		HistoryLinearModel(nh,no,ni),
+		steplength(sl),
+		current_queue_depth(0),
+		equispace_queue(ni*nh)
+	{}
+	void train(const double* predicted)
+	{
+		
 	}
 };
