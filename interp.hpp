@@ -70,7 +70,7 @@ protected:
 	
 public:
 	
-	//locations, one per column, 
+	//locations, one per column,  //Todo: precondition flocations and xlocations
 	LagrangeInterpolator(const Eigen::MatrixXd& xlocations,const Eigen::MatrixXd& flocations,size_t max_exponent)
 	{
 		exponents=build_exponents(max_exponent,xlocations.rows());
