@@ -21,7 +21,7 @@
 namespace endian
 {
 
-namespace {
+namespace { //Private implementation details.
 
 template<class T,unsigned int N>
 struct swap_bytes { static T call(const T& x) {
@@ -74,6 +74,9 @@ struct swapper_if_needed<T,true> {
     static T call(const T& x) { return swap_bytes<T,sizeof(T)>::call(x); }
 };
 }
+
+
+//PUBLIC INTERFACE BELOW THIS LINE
 	
 template<class T>
 inline typename std::enable_if<std::is_integral<T>::value || std::is_floating_point<T>::value,T>::type
