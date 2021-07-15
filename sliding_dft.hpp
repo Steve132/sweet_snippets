@@ -14,14 +14,16 @@ class sliding_dft
 {
 protected:
 	std::vector<std::complex<REAL>> selected_unity_roots;
+	std::vector<std::complex<REAL>> td;  //td needs to be a ringbuffer.  That makes this go from O(f+t) to O(f) (NICE!)
+	size_t td_head;
 public:
 	std::vector<std::complex<REAL>> fd;
-	std::vector<std::complex<REAL>> td;
 	
 	sliding_fft(size_t tN,const std::vector<unsigned>& selected_frequencies):
 		selected_unity_roots(selected_frequencies.size()),
 		fd(selected_frequencies.size(),0.0),
-		td(tN,0.0)
+		td(tN,0.0),
+		td_head(0)
 	{
 		//all frequencies must be less than tN
 		static const REAL pi_2 = static_cast<REAL>(2.0)*static_cast<REAL>(3.14159265358979323846264338327950288419716939937510L);
@@ -32,15 +34,13 @@ public:
 			selected_unity_roots[i]={std::cos(angle),std::sin(angle)};
 		}
 	}
-	void push_timedomain(const std::complex<REAL>& t)
+	void push_timedomain(const std::complex<REAL>& newest)
 	{
-		std::complex<REAL> oldest=td[0];
-		std::complex<REAL> newest=t;
+		std::complex<REAL> oldest=td[td_head];
+		td[td_head++]=newest;
 		for(size_t i=0;i<fd.size();i++)
 		{
 			fd_next[i]=selected_unity_roots[i]*(fd[i]-oldest+newest);
 		}
-		std::copy(td.begin()+1,td.end(),td.begin());
-		td.back()=newest;
 	}
 };
